@@ -35,6 +35,19 @@ namespace Lösenordshanterare
                 Console.WriteLine("iv är skapad och fil är skapad");
             }
 
+            // Skapar ett tomt valv (steg 4 i DFD)
+
+            Dictionary<string, string> vault = new Dictionary<string, string>();
+            vault.Add("netflix.com", "hemligt123");
+            vault.Add("google.com", "lösenord456");
+
+            // Kontrollera innehållet med en foreach-loop
+            foreach (var item in vault)
+            {
+                // Använd egenskaperna Key och Value för att skriva ut informationen
+                Console.WriteLine($"Konto: {item.Key}, Lösenord: {item.Value}");
+            }
+
         }
     }
 }
