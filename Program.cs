@@ -26,10 +26,13 @@ namespace Lösenordshanterare
 }
 
             // Skapa serverfilen om den inte finns
-            if (!File.Exists(serverPath))
+            if (!File.Exists(serverPath) || new FileInfo(serverPath).Length == 0)
             {
-                File.WriteAllText(serverPath, "");
-    Console.WriteLine($"Serverfil skapad på: {serverPath}");
+                byte[] vectorBytes = new byte[16];
+                RandomNumberGenerator.Fill(vectorBytes);
+                string iv = Convert.ToBase64String(vectorBytes);
+                File.WriteAllText(serverPath, iv);
+                Console.WriteLine("iv är skapad och fil är skapad");
             }
 
         }
