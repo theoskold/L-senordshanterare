@@ -14,7 +14,6 @@ namespace Lösenordshanterare
             Console.WriteLine("Ange sökväg för serverfil (t.ex. server.txt):");
             string serverPath = Console.ReadLine();
 
-
             if (!File.Exists(clientPath))
             {
                 File.WriteAllText(clientPath, ""); // Skapar en tom fil
