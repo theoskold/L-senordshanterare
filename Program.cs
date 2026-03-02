@@ -9,6 +9,7 @@ namespace Lösenordshanterare
         static void Main(string[] args)
         {
             string clientPath = "client.txt";
+            
             string serverPath = "server.txt";
 
             if (!File.Exists(clientPath))
