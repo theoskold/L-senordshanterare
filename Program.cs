@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Security.Cryptography;
+using System.Text.Json;
 
 
 namespace Lösenordshanterare
@@ -41,8 +42,12 @@ namespace Lösenordshanterare
             vault.Add("netflix.com", "hemligt123");
             vault.Add("google.com", "lösenord456");
 
+            string json = JsonSerializer.Serialize(vault);
+            Console.WriteLine(json);
+
+            var restoredVault = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
             // Kontrollera innehållet med en foreach-loop
-            foreach (var item in vault)
+            foreach (var item in restoredVault)
             {
                 // Använd egenskaperna Key och Value för att skriva ut informationen
                 Console.WriteLine($"Konto: {item.Key}, Lösenord: {item.Value}");
