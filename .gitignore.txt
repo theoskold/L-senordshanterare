@@ -1,0 +1,4 @@
+# Ignonera lokala lösenordsfiler
+client.txt
+server.txt
+*.jso
