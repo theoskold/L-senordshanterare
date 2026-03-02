@@ -8,22 +8,19 @@ namespace Lösenordshanterare
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Ange sökväg för klientfil (t.ex. client.txt):");
-            string clientPath = Console.ReadLine();
-
-            Console.WriteLine("Ange sökväg för serverfil (t.ex. server.txt):");
-            string serverPath = Console.ReadLine();
+            string clientPath = "client.txt";
+            string serverPath = "server.txt";
 
             if (!File.Exists(clientPath))
             {
                 File.WriteAllText(clientPath, ""); // Skapar en tom fil
-                [cite_start] Console.WriteLine($"Klientfil skapad på: {clientPath}"); [cite: 150]
+                Console.WriteLine($"Klientfil skapad på: {clientPath}");
 }
 
             // Skapa serverfilen om den inte finns
             if (!File.Exists(serverPath))
             {
-                [cite_start] File.WriteAllText(serverPath, ""); [cite: 138]
+                File.WriteAllText(serverPath, "");
     Console.WriteLine($"Serverfil skapad på: {serverPath}");
             }
 
