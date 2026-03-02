@@ -12,10 +12,17 @@ namespace Lösenordshanterare
             
             string serverPath = "server.txt";
 
-            if (!File.Exists(clientPath))
+            
+            if (!File.Exists(clientPath) || new FileInfo(clientPath).Length == 0)
             {
-                File.WriteAllText(clientPath, ""); // Skapar en tom fil
-                Console.WriteLine($"Klientfil skapad på: {clientPath}");
+               
+                
+                byte[] keyBytes = new byte[32];
+                RandomNumberGenerator.Fill(keyBytes);
+                string secretKey = Convert.ToBase64String(keyBytes);
+                File.WriteAllText(clientPath, secretKey );
+                Console.WriteLine("secret key är skapad och fil är skapad");
+
 }
 
             // Skapa serverfilen om den inte finns
