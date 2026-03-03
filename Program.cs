@@ -43,6 +43,10 @@ namespace Lösenordshanterare
                     RunSet(args);
                     break;
 
+                case "delete":
+                    RunDelete(args);
+                    break;
+
                 default:
                     Console.WriteLine($"Fel: Okänt kommando '{args[0]}'.");
                     break;
@@ -84,7 +88,7 @@ namespace Lösenordshanterare
 
             // 4) Skapa tomt valv och kryptera
             var vaultInit = new Dictionary<string, string>();
-            vaultInit["test.example.com"] = "hemligt123";
+            
             string vaultJson = JsonSerializer.Serialize(vaultInit);
             byte[] plaintext = Encoding.UTF8.GetBytes(vaultJson);
 
@@ -421,6 +425,137 @@ namespace Lösenordshanterare
             vault[prop] = value;
 
             // 7) Kryptera om och spara tillbaka
+            string vaultJson = JsonSerializer.Serialize(vault);
+            byte[] plaintext = Encoding.UTF8.GetBytes(vaultJson);
+            byte[] newCipher = EncryptVault(plaintext, vaultKey, ivBytes);
+
+            serverData["vault"] = Convert.ToBase64String(newCipher);
+
+            File.WriteAllText(serverPath, JsonSerializer.Serialize(serverData));
+        }
+        static void RunDelete(string[] args)
+        {
+            // delete <client> <server> <prop>
+            if (args.Length != 4)
+            {
+                Console.WriteLine("Fel: Syntax: delete <client> <server> <prop>");
+                return;
+            }
+
+            string clientPath = args[1];
+            string serverPath = args[2];
+            string prop = args[3];
+
+            // -----------------------------------------------------
+            // 1) Läs client.json och hämta "secret"
+            // -----------------------------------------------------
+            if (!File.Exists(clientPath))
+            {
+                Console.WriteLine("Fel: Client-filen finns inte.");
+                return;
+            }
+
+            Dictionary<string, string>? clientData;
+            try
+            {
+                clientData = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(clientPath));
+            }
+            catch
+            {
+                Console.WriteLine("Fel: Client-filen är inte giltig JSON.");
+                return;
+            }
+
+            if (clientData == null || !clientData.ContainsKey("secret"))
+            {
+                Console.WriteLine("Fel: Client-filen saknar 'secret'.");
+                return;
+            }
+
+            byte[] secretKeyBytes;
+            try
+            {
+                secretKeyBytes = Convert.FromBase64String(clientData["secret"]);
+            }
+            catch
+            {
+                Console.WriteLine("Fel: Client-filens 'secret' är inte giltig Base64.");
+                return;
+            }
+
+            // -----------------------------------------------------
+            // 2) Läs server.json och hämta "iv" och "vault"
+            // -----------------------------------------------------
+            if (!File.Exists(serverPath))
+            {
+                Console.WriteLine("Fel: Server-filen finns inte.");
+                return;
+            }
+
+            Dictionary<string, string>? serverData;
+            try
+            {
+                serverData = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(serverPath));
+            }
+            catch
+            {
+                Console.WriteLine("Fel: Server-filen är inte giltig JSON.");
+                return;
+            }
+
+            if (serverData == null || !serverData.ContainsKey("iv") || !serverData.ContainsKey("vault"))
+            {
+                Console.WriteLine("Fel: Server-filen saknar 'iv' och/eller 'vault'.");
+                return;
+            }
+
+            byte[] ivBytes;
+            byte[] ciphertext;
+            try
+            {
+                ivBytes = Convert.FromBase64String(serverData["iv"]);
+                ciphertext = Convert.FromBase64String(serverData["vault"]);
+            }
+            catch
+            {
+                Console.WriteLine("Fel: Server-filens 'iv' eller 'vault' är inte giltig Base64.");
+                return;
+            }
+
+            // -----------------------------------------------------
+            // 3) Fråga master password
+            // -----------------------------------------------------
+            Console.Write("Ange master password: ");
+            string masterPassword = Console.ReadLine();
+
+            // -----------------------------------------------------
+            // 4) Dekryptera vault
+            // -----------------------------------------------------
+            byte[] vaultKey = DeriveVaultKey_UsingIvAsSalt(secretKeyBytes, masterPassword, ivBytes);
+
+            Dictionary<string, string> vault;
+            try
+            {
+                byte[] decrypted = DecryptVault(ciphertext, vaultKey, ivBytes);
+                string jsonBack = Encoding.UTF8.GetString(decrypted);
+
+                vault = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonBack)
+                        ?? new Dictionary<string, string>();
+            }
+            catch
+            {
+                Console.WriteLine("Fel: Fel master password eller fel client/server (kunde inte dekryptera).");
+                return;
+            }
+
+            // -----------------------------------------------------
+            // 5) Ta bort prop (om den finns)
+            // -----------------------------------------------------
+            vault.Remove(prop); // om den inte finns händer inget (helt enligt spec)
+
+            // -----------------------------------------------------
+            // 6) Kryptera om och spara tillbaka
+            // -----------------------------------------------------
             string vaultJson = JsonSerializer.Serialize(vault);
             byte[] plaintext = Encoding.UTF8.GetBytes(vaultJson);
             byte[] newCipher = EncryptVault(plaintext, vaultKey, ivBytes);
