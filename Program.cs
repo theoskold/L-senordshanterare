@@ -35,6 +35,10 @@ namespace Lösenordshanterare
                     RunSecret(args);
                     break;
 
+                case "create":
+                    RunCreate(args);
+                    break;
+
                 case "get":
                     RunGet(args);
                     break;
@@ -71,7 +75,7 @@ namespace Lösenordshanterare
             string serverPath = args[2];
 
             Console.Write("Ange master password: ");
-            string masterPassword = Console.ReadLine();
+            string masterPassword = Console.ReadLine() ?? "";
 
             // 1) Skapa secret key (32 bytes)
             byte[] secretKeyBytes = new byte[32];
@@ -247,7 +251,7 @@ namespace Lösenordshanterare
             // 3) Fråga master password (interaktivt enligt {<pwd>})
             // -----------------------------------------------------
             Console.Write("Ange master password: ");
-            string masterPassword = Console.ReadLine();
+            string masterPassword = Console.ReadLine() ?? "";
 
             // -----------------------------------------------------
             // 4) Skapa vaultKey och dekryptera vaultet
@@ -387,7 +391,7 @@ namespace Lösenordshanterare
 
             // 3) Fråga master password
             Console.Write("Ange master password: ");
-            string masterPassword = Console.ReadLine();
+            string masterPassword = Console.ReadLine() ?? "";
 
             // 4) Dekryptera vault
             byte[] vaultKey = DeriveVaultKey_UsingIvAsSalt(secretKeyBytes, masterPassword, ivBytes);
@@ -418,7 +422,7 @@ namespace Lösenordshanterare
             else
             {
                 Console.Write("Ange value att spara: ");
-                value = Console.ReadLine();
+                value = Console.ReadLine() ?? "";
             }
 
             // 6) Uppdatera vault
@@ -433,6 +437,121 @@ namespace Lösenordshanterare
 
             File.WriteAllText(serverPath, JsonSerializer.Serialize(serverData));
         }
+
+        // =====================================================
+// *** NYTT ***
+// CREATE: create <client> <server> {<pwd>} {<secret>}
+// Skapar ny client-fil som "login" till en existerande server.
+// Verifierar först att pwd+secret kan dekryptera serverns vault.
+// Om dekryptering misslyckas: avbryt och skriv fel.
+// Om client-filen finns: override utan prompt.
+// =====================================================
+static void RunCreate(string[] args)
+{
+    if (args.Length != 3)
+    {
+        Console.WriteLine("Fel: Syntax: create <client> <server>");
+        return;
+    }
+
+    string clientPath = args[1];
+    string serverPath = args[2];
+
+    // -----------------------------------------------------
+    // 1) Läs server.json och hämta "iv" och "vault"
+    // -----------------------------------------------------
+    if (!File.Exists(serverPath))
+    {
+        Console.WriteLine("Fel: Server-filen finns inte.");
+        return;
+    }
+
+    Dictionary<string, string>? serverData;
+    try
+    {
+        serverData = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(serverPath));
+    }
+    catch
+    {
+        Console.WriteLine("Fel: Server-filen är inte giltig JSON.");
+        return;
+    }
+
+    if (serverData == null || !serverData.ContainsKey("iv") || !serverData.ContainsKey("vault"))
+    {
+        Console.WriteLine("Fel: Server-filen saknar 'iv' och/eller 'vault'.");
+        return;
+    }
+
+    byte[] ivBytes;
+    byte[] ciphertext;
+    try
+    {
+        ivBytes = Convert.FromBase64String(serverData["iv"]);
+        ciphertext = Convert.FromBase64String(serverData["vault"]);
+    }
+    catch
+    {
+        Console.WriteLine("Fel: Server-filens 'iv' eller 'vault' är inte giltig Base64.");
+        return;
+    }
+
+    // -----------------------------------------------------
+    // 2) Fråga master password och secret key
+    // -----------------------------------------------------
+    Console.Write("Ange master password: ");
+            string masterPassword = Console.ReadLine() ?? "";
+
+            Console.Write("Ange secret key: ");
+            string secretB64 = Console.ReadLine() ?? "";
+
+            if (string.IsNullOrWhiteSpace(secretB64))
+    {
+        Console.WriteLine("Fel: Ingen secret key angiven.");
+        return;
+    }
+
+    byte[] secretKeyBytes;
+    try
+    {
+        secretKeyBytes = Convert.FromBase64String(secretB64);
+    }
+    catch
+    {
+        Console.WriteLine("Fel: Secret key är inte giltig Base64.");
+        return;
+    }
+
+    // -----------------------------------------------------
+    // 3) Försök dekryptera vaultet (verifiera pwd+secret)
+    // -----------------------------------------------------
+    byte[] vaultKey = DeriveVaultKey_UsingIvAsSalt(secretKeyBytes, masterPassword, ivBytes);
+
+    try
+    {
+        byte[] decrypted = DecryptVault(ciphertext, vaultKey, ivBytes);
+        string jsonBack = Encoding.UTF8.GetString(decrypted);
+
+        // Extra verifiering att det faktiskt är JSON i rätt format
+        _ = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonBack)
+            ?? new Dictionary<string, string>();
+    }
+    catch
+    {
+        Console.WriteLine("Fel: Fel master password eller fel secret key (kunde inte dekryptera).");
+        return;
+    }
+
+    // -----------------------------------------------------
+    // 4) Skriv client.json (override utan prompt)
+    // -----------------------------------------------------
+    var clientDict = new Dictionary<string, string>
+    {
+        { "secret", secretB64 }
+    };
+
+    File.WriteAllText(clientPath, JsonSerializer.Serialize(clientDict));
+}
         static void RunDelete(string[] args)
         {
             // delete <client> <server> <prop>
@@ -526,7 +645,7 @@ namespace Lösenordshanterare
             // 3) Fråga master password
             // -----------------------------------------------------
             Console.Write("Ange master password: ");
-            string masterPassword = Console.ReadLine();
+            string masterPassword = Console.ReadLine() ?? "";
 
             // -----------------------------------------------------
             // 4) Dekryptera vault
