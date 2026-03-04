@@ -255,7 +255,7 @@ namespace Lösenordshanterare
             // -----------------------------------------------------
             // 3) Fråga master password (interaktivt enligt {<pwd>})
             // -----------------------------------------------------
-            Console.Error.Write("Ange master password: ");
+            Console.WriteLine("Ange master password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
             // -----------------------------------------------------
@@ -395,7 +395,7 @@ namespace Lösenordshanterare
             }
 
             // 3) Fråga master password
-            Console.Error.Write("Ange master password: ");
+            Console.Write("Ange master password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
             // 4) Dekryptera vault
@@ -426,7 +426,7 @@ namespace Lösenordshanterare
             }
             else
             {
-                Console.Error.Write("Ange value att spara: ");
+                Console.WriteLine("Ange value att spara: ");
                 value = Console.ReadLine() ?? "";
             }
 
@@ -500,10 +500,10 @@ namespace Lösenordshanterare
                 return;
             }
 
-            Console.Write("Ange master password: ");
+            Console.WriteLine("Ange master password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
-            Console.Write("Ange secret key: ");
+            Console.WriteLine("Ange secret key: ");
             string secretB64 = Console.ReadLine() ?? "";
 
             if (string.IsNullOrWhiteSpace(secretB64))
@@ -638,7 +638,7 @@ namespace Lösenordshanterare
             // -----------------------------------------------------
             // 3) Fråga master password
             // -----------------------------------------------------
-            Console.Write("Ange master password: ");
+            Console.WriteLine("Ange master password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
             // -----------------------------------------------------
@@ -768,7 +768,7 @@ namespace Lösenordshanterare
                 return;
             }
 
-            Console.Write("Ange master password: ");
+            Console.WriteLine("Ange master password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
             byte[] oldVaultKey = DeriveVaultKey_UsingIvAsSalt(secretKeyBytes, masterPassword, ivBytes);
@@ -788,7 +788,7 @@ namespace Lösenordshanterare
                 return;
             }
 
-            Console.Write("Ange nytt master password: ");
+            Console.WriteLine("Ange nytt master password: ");
             string newMasterPassword = Console.ReadLine() ?? "";
 
             if (string.IsNullOrEmpty(newMasterPassword))
