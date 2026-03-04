@@ -7,14 +7,15 @@ using System.Text.Json;
 
 namespace Lösenordshanterare
 {
-    internal class Program
+    public class Program
     {
-        static void Main(string[] args)
+       public static void Main(string[] args)
         {
             // =====================================================
             // *** NYTT ***
             // Router: välj kommando från args[0]
             // =====================================================
+
             if (args.Length == 0)
             {
                 Console.WriteLine("Fel: Inget kommando angivet.");
@@ -254,7 +255,7 @@ namespace Lösenordshanterare
             // -----------------------------------------------------
             // 3) Fråga master password (interaktivt enligt {<pwd>})
             // -----------------------------------------------------
-            Console.Write("Ange master password: ");
+            Console.Error.Write("Ange master password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
             // -----------------------------------------------------
@@ -394,7 +395,7 @@ namespace Lösenordshanterare
             }
 
             // 3) Fråga master password
-            Console.Write("Ange master password: ");
+            Console.Error.Write("Ange master password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
             // 4) Dekryptera vault
@@ -425,7 +426,7 @@ namespace Lösenordshanterare
             }
             else
             {
-                Console.Write("Ange value att spara: ");
+                Console.Error.Write("Ange value att spara: ");
                 value = Console.ReadLine() ?? "";
             }
 
