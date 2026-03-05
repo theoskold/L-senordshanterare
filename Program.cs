@@ -18,18 +18,18 @@ namespace Lösenordshanterare
 
             if (args.Length == 0)
             {
-                Console.WriteLine("Fel: Inget kommando angivet.");
-                Console.WriteLine("Exempel: init client.json server.json");
-                Console.WriteLine("Exempel: secret client.json");
+                Console.WriteLine("Inget kommando angivet, ange giltigt kommando");
+
+
                 return;
             }
 
-            string command = args[0].ToLowerInvariant();
+            string command = args[0].ToLower();
 
             switch (command)
             {
                 case "init":
-                    RunInit(args);
+                    init(args);
                     break;
 
                 case "secret":
@@ -57,7 +57,7 @@ namespace Lösenordshanterare
                     break;
 
                 default:
-                    Console.WriteLine($"Fel: Okänt kommando '{args[0]}'.");
+                    Console.WriteLine("Ange ett giltigt kommando");
                     break;
             }
         }
@@ -67,59 +67,60 @@ namespace Lösenordshanterare
         // INIT: init <client> <server> {<pwd>}
         // Skapar nya filer (override), krypterar tomt vault, printar secret.
         // =====================================================
-        static void RunInit(string[] args)
+        static void init(string[] args)
         {
             // Manual: init <client> <server>
             if (args.Length != 3)
             {
-                Console.WriteLine("Fel: Syntax: init <client> <server>");
+                Console.WriteLine("Felaktig syntax angivet, för init, använd: init <client> <server>");
+
                 return;
             }
 
             string clientPath = args[1];
             string serverPath = args[2];
 
-            Console.Write("Ange master password: ");
+            Console.Write("Ange ditt master-password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
-            // 1) Skapa secret key (32 bytes)
-            byte[] secretKeyBytes = new byte[32];
-            RandomNumberGenerator.Fill(secretKeyBytes);
-            string secretB64 = Convert.ToBase64String(secretKeyBytes);
+            // 1) Skapa secret key (32 bytes) secretKeyBytes, secretB64
+            byte[] secretKey = new byte[32];
+            RandomNumberGenerator.Fill(secretKey);
+            string secretKeyToBase64 = Convert.ToBase64String(secretKey);
 
-            // 2) Skapa IV (16 bytes)
-            byte[] ivBytes = new byte[16];
-            RandomNumberGenerator.Fill(ivBytes);
-            string ivB64 = Convert.ToBase64String(ivBytes);
+            // 2) Skapa IV (16 bytes)  ivBytes, ivB64
+            byte[] iv = new byte[16];
+            RandomNumberGenerator.Fill(iv);
+            string ivToBase64 = Convert.ToBase64String(iv);
 
             // 3) Derivera vaultKey med PBKDF2 (Alternativ B: IV används som salt)
-            byte[] vaultKey = DeriveVaultKey_UsingIvAsSalt(secretKeyBytes, masterPassword, ivBytes);
+            byte[] vaultKey = DeriveVaultKey_UsingIvAsSalt(secretKey, masterPassword, iv);
 
-            // 4) Skapa tomt valv och kryptera
-            var vaultInit = new Dictionary<string, string>();
+            // 4) Skapa tomt valv och kryptera, vaultInit, vaultJson, plaintext, ciphertext
+            var vaultNew = new Dictionary<string, string>();
             
-            string vaultJson = JsonSerializer.Serialize(vaultInit);
-            byte[] plaintext = Encoding.UTF8.GetBytes(vaultJson);
+            string vaultToJson = JsonSerializer.Serialize(vaultNew);
+            byte[] vaultBytes = Encoding.UTF8.GetBytes(vaultToJson);
 
-            byte[] ciphertext = EncryptVault(plaintext, vaultKey, ivBytes);
+            byte[] encryptedBytes = EncryptVault(vaultBytes, vaultKey, iv);
 
-            // 5) Skriv client.json (override utan prompt)
-            var clientDict = new Dictionary<string, string>
+            // 5) Skriv client.json (override utan prompt), clientDict
+            var clientDictionary = new Dictionary<string, string>
             {
-                { "secret", secretB64 }
+                { "secret", secretKeyToBase64 }
             };
-            File.WriteAllText(clientPath, JsonSerializer.Serialize(clientDict));
+            File.WriteAllText(clientPath, JsonSerializer.Serialize(clientDictionary));
 
-            // 6) Skriv server.json (override utan prompt)
-            var serverDict = new Dictionary<string, string>
+            // 6) Skriv server.json (override utan prompt), serverDict
+            var serverDictionary = new Dictionary<string, string>
             {
-                { "iv", ivB64 },
-                { "vault", Convert.ToBase64String(ciphertext) }
+                { "iv", ivToBase64 },
+                { "vault", Convert.ToBase64String(encryptedBytes) }
             };
-            File.WriteAllText(serverPath, JsonSerializer.Serialize(serverDict));
+            File.WriteAllText(serverPath, JsonSerializer.Serialize(serverDictionary));
 
             // Manual: "Your secret key will be printed in plain-text to standard out"
-            Console.WriteLine(secretB64);
+            Console.WriteLine(secretKeyToBase64);
         }
 
         // =====================================================
