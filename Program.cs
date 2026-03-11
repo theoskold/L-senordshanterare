@@ -7,14 +7,22 @@ using System.Text.Json;
 
 namespace Lösenordshanterare
 {
+    //Allmän innehållsförteckning
+    // Init rad 75
+    // Secret rad 131
+    // Get rad 168
+    // Set rad 294
+    // Create rad 448
+    // Delete rad 546
+    // Change rad 664
+    // autoGeneratePassword rad 785
+    // DeriveVaultKey rad 802
+    // EncryptVault rad 816
+    // DecryptVault rad 827
     public class Program
     {
        public static void Main(string[] args)
         {
-            // =====================================================
-            // *** NYTT ***
-            // Router: välj kommando från args[0]
-            // =====================================================
 
             if (args.Length == 0)
             {
@@ -29,31 +37,31 @@ namespace Lösenordshanterare
             switch (command)
             {
                 case "init":
-                    init(args);
+                    Init(args);
                     break;
 
                 case "secret":
-                    RunSecret(args);
+                    Secret(args);
                     break;
 
                 case "create":
-                    RunCreate(args);
+                    Create(args);
                     break;
 
                 case "get":
-                    RunGet(args);
+                    Get(args);
                     break;
 
                 case "set":
-                    RunSet(args);
+                    Set(args);
                     break;
 
                 case "delete":
-                    RunDelete(args);
+                    Delete(args);
                     break;
 
                 case "change":
-                    RunChange(args);
+                    Change(args);
                     break;
 
                 default:
@@ -62,14 +70,11 @@ namespace Lösenordshanterare
             }
         }
 
-        // =====================================================
-        // *** NYTT ***
-        // INIT: init <client> <server> {<pwd>}
-        // Skapar nya filer (override), krypterar tomt vault, printar secret.
-        // =====================================================
-        static void init(string[] args)
+
+        //Skapar valv, client och serverfil
+        static void Init(string[] args)
         {
-            // Manual: init <client> <server>
+           
             if (args.Length != 3)
             {
                 Console.WriteLine("Felaktig syntax angivet, för init, använd: init <client> <server>");
@@ -83,20 +88,18 @@ namespace Lösenordshanterare
             Console.Write("Ange ditt master-password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
-            // 1) Skapa secret key (32 bytes) secretKeyBytes, secretB64
             byte[] secretKey = new byte[32];
             RandomNumberGenerator.Fill(secretKey);
-            string secretKeyToBase64 = Convert.ToBase64String(secretKey);
+            string secretKeyBase64 = Convert.ToBase64String(secretKey);
 
-            // 2) Skapa IV (16 bytes)  ivBytes, ivB64
+       
             byte[] iv = new byte[16];
             RandomNumberGenerator.Fill(iv);
-            string ivToBase64 = Convert.ToBase64String(iv);
+            string ivBase64 = Convert.ToBase64String(iv);
 
-            // 3) Derivera vaultKey med PBKDF2 (Alternativ B: IV används som salt)
-            byte[] vaultKey = DeriveVaultKey_UsingIvAsSalt(secretKey, masterPassword, iv);
+      
+            byte[] vaultKey = DeriveVaultKey(secretKey, masterPassword, iv);
 
-            // 4) Skapa tomt valv och kryptera, vaultInit, vaultJson, plaintext, ciphertext
             var vaultNew = new Dictionary<string, string>();
             
             string vaultToJson = JsonSerializer.Serialize(vaultNew);
@@ -104,35 +107,32 @@ namespace Lösenordshanterare
 
             byte[] encryptedBytes = EncryptVault(vaultBytes, vaultKey, iv);
 
-            // 5) Skriv client.json (override utan prompt), clientDict
+     
             var clientDictionary = new Dictionary<string, string>
             {
-                { "secret", secretKeyToBase64 }
+                { "secret", secretKeyBase64 }
             };
             File.WriteAllText(clientPath, JsonSerializer.Serialize(clientDictionary));
 
-            // 6) Skriv server.json (override utan prompt), serverDict
+            
             var serverDictionary = new Dictionary<string, string>
             {
-                { "iv", ivToBase64 },
+                { "iv", ivBase64 },
                 { "vault", Convert.ToBase64String(encryptedBytes) }
             };
             File.WriteAllText(serverPath, JsonSerializer.Serialize(serverDictionary));
 
-            // Manual: "Your secret key will be printed in plain-text to standard out"
-            Console.WriteLine(secretKeyToBase64);
+            
+            Console.WriteLine(secretKeyBase64);
         }
 
-        // =====================================================
-        // *** NYTT (lätt kommando, bra för att testa args-routing) ***
-        // SECRET: secret <client>
-        // Skriver ut secret key som finns i client.json
-        // =====================================================
-        static void RunSecret(string[] args)
+
+        // Skriver ut secret key från clientfil. 
+        static void Secret(string[] args)
         {
             if (args.Length != 2)
             {
-                Console.WriteLine("Fel: Syntax: secret <client>");
+                Console.WriteLine("Felaktig syntax angivet, för secret, använd: secret <client>");
                 return;
             }
 
@@ -140,7 +140,7 @@ namespace Lösenordshanterare
 
             if (!File.Exists(clientPath))
             {
-                Console.WriteLine("Fel: Client-filen finns inte.");
+                Console.WriteLine("Det finns ingen Client-fil. ");
                 return;
             }
 
@@ -151,24 +151,26 @@ namespace Lösenordshanterare
             }
             catch
             {
-                Console.WriteLine("Fel: Client-filen är inte giltig JSON.");
+                Console.WriteLine("Client-filen är inte en giltig JSON.");
                 return;
             }
 
-            if (clientData == null || !clientData.TryGetValue("secret", out string secretB64) || string.IsNullOrWhiteSpace(secretB64))
+            if (clientData == null || !clientData.TryGetValue("secret", out string secretKeyBase64) || string.IsNullOrWhiteSpace(secretKeyBase64))
             {
-                Console.WriteLine("Fel: Client-filen saknar 'secret'.");
+                Console.WriteLine("Client-filen saknar  en giltig secret-key.");
                 return;
             }
 
-            Console.WriteLine(secretB64);
+            Console.WriteLine(secretKeyBase64);
         }
-        static void RunGet(string[] args)
+
+        //Skapar vaultkey, hämtar och decrypterar innehållet med hjälp av secret key, iv och master password
+        static void Get(string[] args)
         {
-            // get <client> <server> [<prop>]
+          
             if (args.Length != 3 && args.Length != 4)
             {
-                Console.WriteLine("Fel: Syntax: get <client> <server> [<prop>]");
+                Console.WriteLine("Felaktig syntax angivet, för get, använd: get <client> <server> [<prop>]");
                 return;
             }
 
@@ -176,12 +178,10 @@ namespace Lösenordshanterare
             string serverPath = args[2];
             string? prop = (args.Length == 4) ? args[3] : null;
 
-            // -----------------------------------------------------
-            // 1) Läs client.json och hämta "secret"
-            // -----------------------------------------------------
+
             if (!File.Exists(clientPath))
             {
-                Console.WriteLine("Fel: Client-filen finns inte.");
+                Console.WriteLine("Client-filen existerar inte.");
                 return;
             }
 
@@ -192,34 +192,32 @@ namespace Lösenordshanterare
             }
             catch
             {
-                Console.WriteLine("Fel: Client-filen är inte giltig JSON.");
+                Console.WriteLine("Client-filen är inte en giltig JSON.");
                 return;
             }
 
             if (clientData == null || !clientData.ContainsKey("secret"))
             {
-                Console.WriteLine("Fel: Client-filen saknar 'secret'.");
+                Console.WriteLine("Client-filen saknar en giltig secret-key.");
                 return;
             }
 
-            string secretB64 = clientData["secret"];
-            byte[] secretKeyBytes;
+            string secretKeyBase64 = clientData["secret"];
+            byte[] secretKey;
             try
             {
-                secretKeyBytes = Convert.FromBase64String(secretB64);
+                secretKey = Convert.FromBase64String(secretKeyBase64);
             }
             catch
             {
-                Console.WriteLine("Fel: Client-filens 'secret' är inte giltig Base64.");
+                Console.WriteLine("Secret för client-filen är inte i giltigt Base64-format.");
                 return;
             }
 
-            // -----------------------------------------------------
-            // 2) Läs server.json och hämta "iv" och "vault"
-            // -----------------------------------------------------
+
             if (!File.Exists(serverPath))
             {
-                Console.WriteLine("Fel: Server-filen finns inte.");
+                Console.WriteLine("Server-filen existerar inte.");
                 return;
             }
 
@@ -230,61 +228,55 @@ namespace Lösenordshanterare
             }
             catch
             {
-                Console.WriteLine("Fel: Server-filen är inte giltig JSON.");
+                Console.WriteLine("Server-filen är inte en giltig JSON");
                 return;
             }
 
             if (serverData == null || !serverData.ContainsKey("iv") || !serverData.ContainsKey("vault"))
             {
-                Console.WriteLine("Fel: Server-filen saknar 'iv' och/eller 'vault'.");
+                Console.WriteLine("Server-filen saknar iv och/eller vault, eller är null.");
                 return;
             }
 
-            byte[] ivBytes;
-            byte[] ciphertext;
+            byte[] iv;
+            byte[] encryptedBytes;
             try
             {
-                ivBytes = Convert.FromBase64String(serverData["iv"]);
-                ciphertext = Convert.FromBase64String(serverData["vault"]);
+                iv = Convert.FromBase64String(serverData["iv"]);
+                encryptedBytes = Convert.FromBase64String(serverData["vault"]);
             }
             catch
             {
-                Console.WriteLine("Fel: Server-filens 'iv' eller 'vault' är inte giltig Base64.");
+                Console.WriteLine("Server-filens iv eller vault är inte i giltigt Base64-format.");
                 return;
             }
 
-            // -----------------------------------------------------
-            // 3) Fråga master password (interaktivt enligt {<pwd>})
-            // -----------------------------------------------------
-            Console.WriteLine("Ange master password: ");
+
+            Console.WriteLine("Ange ditt master password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
-            // -----------------------------------------------------
-            // 4) Skapa vaultKey och dekryptera vaultet
-            // -----------------------------------------------------
-            byte[] vaultKey = DeriveVaultKey_UsingIvAsSalt(secretKeyBytes, masterPassword, ivBytes);
+ 
+            byte[] vaultKey = DeriveVaultKey(secretKey, masterPassword, iv);
 
             Dictionary<string, string> vault;
             try
             {
-                byte[] decrypted = DecryptVault(ciphertext, vaultKey, ivBytes);
-                string jsonBack = Encoding.UTF8.GetString(decrypted);
+                byte[] decryptedBytes = DecryptVault(encryptedBytes, vaultKey, iv);
+                string decryptedJson = Encoding.UTF8.GetString(decryptedBytes);
 
-                vault = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonBack)
+                vault = JsonSerializer.Deserialize<Dictionary<string, string>>(decryptedJson)
                         ?? new Dictionary<string, string>();
             }
             catch
             {
-                Console.WriteLine("Fel: Fel master password eller fel client/server (kunde inte dekryptera).");
+                Console.WriteLine("Dekrypteringen misslyckades, angett rätt lösenord?");
                 return;
             }
 
-            // -----------------------------------------------------
-            // 5) Output enligt manualen
-            // -----------------------------------------------------
+
             if (string.IsNullOrEmpty(prop))
             {
-                // Listar alla props (men inte deras värden)
+
                 foreach (var key in vault.Keys)
                 {
                     Console.WriteLine(key);
@@ -292,18 +284,19 @@ namespace Lösenordshanterare
                 return;
             }
 
-            // Om prop finns: skriv värdet om det finns, annars skriv inget
+
             if (vault.TryGetValue(prop, out string value))
             {
                 Console.WriteLine(value);
             }
         }
-        static void RunSet(string[] args)
+        //Decrypterar, skapar eller uppdaterar värden och krypterar sedan igen
+        static void Set(string[] args)
         {
-            // set <client> <server> <prop> [-g|--generate]
+
             if (args.Length < 4 || args.Length > 5)
             {
-                Console.WriteLine("Fel: Syntax: set <client> <server> <prop> [-g|--generate]");
+                Console.WriteLine("Felaktig syntax angivet, för set, använd: set <client> <server> <prop> [-g]");
                 return;
             }
 
@@ -312,21 +305,31 @@ namespace Lösenordshanterare
             string prop = args[3];
 
             bool generate = false;
+
             if (args.Length == 5)
             {
-                string flag = args[4];
-                generate = flag == "-g" || flag == "--generate";
-                if (!generate)
+                if (args[4] == "-g")
                 {
-                    Console.WriteLine("Fel: Okänd flagga. Använd -g eller --generate.");
-                    return;
+                    generate = true;
+                }
+                else
+                {
+                    if (args[4] == "--generate")
+                    {
+                        generate = true;
+                    }
+                    else
+                    {
+                        Console.WriteLine("Okänt input. Använd -g eller --generate.");
+                        return;
+                    }
                 }
             }
 
-            // 1) Läs client.json -> secret
+        
             if (!File.Exists(clientPath))
             {
-                Console.WriteLine("Fel: Client-filen finns inte.");
+                Console.WriteLine("Client-filen existerar inte.");
                 return;
             }
 
@@ -337,31 +340,31 @@ namespace Lösenordshanterare
             }
             catch
             {
-                Console.WriteLine("Fel: Client-filen är inte giltig JSON.");
+                Console.WriteLine("Client-filen är inte i giltigt JSON-format.");
                 return;
             }
 
             if (clientData == null || !clientData.ContainsKey("secret"))
             {
-                Console.WriteLine("Fel: Client-filen saknar 'secret'.");
+                Console.WriteLine("Client-filen saknar en giltig secret-key.");
                 return;
             }
 
-            byte[] secretKeyBytes;
+            byte[] secretKey;
             try
             {
-                secretKeyBytes = Convert.FromBase64String(clientData["secret"]);
+                secretKey = Convert.FromBase64String(clientData["secret"]);
             }
             catch
             {
-                Console.WriteLine("Fel: Client-filens 'secret' är inte giltig Base64.");
+                Console.WriteLine("Secret för client-filen är inte i giltigt Base64-format.");
                 return;
             }
 
-            // 2) Läs server.json -> iv + vault
+            
             if (!File.Exists(serverPath))
             {
-                Console.WriteLine("Fel: Server-filen finns inte.");
+                Console.WriteLine("Server-filen existerar inte.");
                 return;
             }
 
@@ -372,93 +375,81 @@ namespace Lösenordshanterare
             }
             catch
             {
-                Console.WriteLine("Fel: Server-filen är inte giltig JSON.");
+                Console.WriteLine("Server-filen är inte i giltigt JSON-format.");
                 return;
             }
 
             if (serverData == null || !serverData.ContainsKey("iv") || !serverData.ContainsKey("vault"))
             {
-                Console.WriteLine("Fel: Server-filen saknar 'iv' och/eller 'vault'.");
+                Console.WriteLine("Server-filen saknar iv och/eller vault, eller är null.");
                 return;
             }
 
-            byte[] ivBytes;
-            byte[] ciphertext;
+            byte[] iv;
+            byte[] encryptedBytes;
             try
             {
-                ivBytes = Convert.FromBase64String(serverData["iv"]);
-                ciphertext = Convert.FromBase64String(serverData["vault"]);
+                iv = Convert.FromBase64String(serverData["iv"]);
+                encryptedBytes = Convert.FromBase64String(serverData["vault"]);
             }
             catch
             {
-                Console.WriteLine("Fel: Server-filens 'iv' eller 'vault' är inte giltig Base64.");
+                Console.WriteLine("Server-filens iv eller vault är inte i giltigt Base64-format.");
                 return;
             }
 
-            // 3) Fråga master password
+            
             Console.Write("Ange master password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
-            // 4) Dekryptera vault
-            byte[] vaultKey = DeriveVaultKey_UsingIvAsSalt(secretKeyBytes, masterPassword, ivBytes);
+            
+            byte[] vaultKey = DeriveVaultKey(secretKey, masterPassword, iv);
 
             Dictionary<string, string> vault;
             try
             {
-                byte[] decrypted = DecryptVault(ciphertext, vaultKey, ivBytes);
-                string jsonBack = Encoding.UTF8.GetString(decrypted);
+                byte[] decryptedBytes = DecryptVault(encryptedBytes, vaultKey, iv);
+                string decryptedJson = Encoding.UTF8.GetString(decryptedBytes);
 
-                vault = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonBack)
+                vault = JsonSerializer.Deserialize<Dictionary<string, string>>(decryptedJson)
                         ?? new Dictionary<string, string>();
             }
             catch
             {
-                Console.WriteLine("Fel: Fel master password eller fel client/server (kunde inte dekryptera).");
+                Console.WriteLine("Dekrypteringen misslyckades, angett rätt lösenord?");
                 return;
             }
 
-            // 5) Läs value (eller generera)
+           
             string value;
             if (generate)
             {
-                value = GeneratePassword20();
-                // Manualen: genererat lösenord ska skrivas ut
+                value = autoGeneratePassword();
                 Console.WriteLine(value);
             }
             else
             {
-                Console.WriteLine("Ange value att spara: ");
+                Console.WriteLine("Ange ett lösenord att spara: ");
                 value = Console.ReadLine() ?? "";
             }
 
-            // 6) Uppdatera vault
             vault[prop] = value;
 
-            // 7) Kryptera om och spara tillbaka
-            string vaultJson = JsonSerializer.Serialize(vault);
-            byte[] plaintext = Encoding.UTF8.GetBytes(vaultJson);
-            byte[] newCipher = EncryptVault(plaintext, vaultKey, ivBytes);
+            string vaultToJson = JsonSerializer.Serialize(vault);
+            byte[] vaultBytes = Encoding.UTF8.GetBytes(vaultToJson);
+            byte[] encryptedBytesNew = EncryptVault(vaultBytes, vaultKey, iv);
 
-            serverData["vault"] = Convert.ToBase64String(newCipher);
+            serverData["vault"] = Convert.ToBase64String(encryptedBytesNew);
 
             File.WriteAllText(serverPath, JsonSerializer.Serialize(serverData));
         }
 
-        // =====================================================
-        // *** NYTT ***
-        // CREATE: create <client> <server> {<pwd>} {<secret>}
-        // Skapar ny client-fil som "login" till en existerande server.
-        // Verifierar först att pwd+secret kan dekryptera serverns vault.
-        // Om dekryptering misslyckas: avbryt och skriv fel.
-        // Om client-filen finns: override utan prompt.
-        // =====================================================
-        // =====================================================
-        
-        static void RunCreate(string[] args)
+        // Skapar en ny client fil med hjälp av master password och den redan existerande secret keyn.    
+        static void Create(string[] args)
         {
             if (args.Length != 3)
             {
-                Console.WriteLine("Fel: Syntax: create <client> <server>");
+                Console.WriteLine("Felaktig syntax angivet, för create, använd: create <client> <server>");
                 return;
             }
 
@@ -467,7 +458,7 @@ namespace Lösenordshanterare
 
             if (!File.Exists(serverPath))
             {
-                Console.WriteLine("Fel: Server-filen finns inte.");
+                Console.WriteLine("Server-filen existerar inte.");
                 return;
             }
 
@@ -478,26 +469,26 @@ namespace Lösenordshanterare
             }
             catch
             {
-                Console.WriteLine("Fel: Server-filen är inte giltig JSON.");
+                Console.WriteLine("Server-filen är inte i giltigt JSON-format.");
                 return;
             }
 
             if (serverData == null || !serverData.ContainsKey("iv") || !serverData.ContainsKey("vault"))
             {
-                Console.WriteLine("Fel: Server-filen saknar 'iv' och/eller 'vault'.");
+                Console.WriteLine("Server-filen saknar iv och/eller vault, eller är null.");
                 return;
             }
 
-            byte[] ivBytes;
-            byte[] ciphertext;
+            byte[] iv;
+            byte[] encryptedBytes;
             try
             {
-                ivBytes = Convert.FromBase64String(serverData["iv"]);
-                ciphertext = Convert.FromBase64String(serverData["vault"]);
+                iv = Convert.FromBase64String(serverData["iv"]);
+                encryptedBytes = Convert.FromBase64String(serverData["vault"]);
             }
             catch
             {
-                Console.WriteLine("Fel: Server-filens 'iv' eller 'vault' är inte giltig Base64.");
+                Console.WriteLine("Server-filens iv eller vault är inte i giltigt Base64-format.");
                 return;
             }
 
@@ -505,54 +496,58 @@ namespace Lösenordshanterare
             string masterPassword = Console.ReadLine() ?? "";
 
             Console.WriteLine("Ange secret key: ");
-            string secretB64 = Console.ReadLine() ?? "";
+            string secretKeyBase64 = Console.ReadLine() ?? "";
 
-            if (string.IsNullOrWhiteSpace(secretB64))
+            if (string.IsNullOrWhiteSpace(secretKeyBase64))
             {
-                Console.WriteLine("Fel: Ingen secret key angiven.");
+                Console.WriteLine("Du har inte angett en secret key.");
                 return;
             }
 
-            byte[] secretKeyBytes;
+            byte[] secretKey;
             try
             {
-                secretKeyBytes = Convert.FromBase64String(secretB64);
+                secretKey = Convert.FromBase64String(secretKeyBase64);
             }
             catch
             {
-                Console.WriteLine("Fel: Secret key är inte giltig Base64.");
+                Console.WriteLine("Secret key är inte i giltigt JSON-format.");
                 return;
             }
 
-            byte[] vaultKey = DeriveVaultKey_UsingIvAsSalt(secretKeyBytes, masterPassword, ivBytes);
+            byte[] vaultKey = DeriveVaultKey(secretKey, masterPassword, iv);
 
+            Dictionary<string, string> vault;
             try
             {
-                byte[] decrypted = DecryptVault(ciphertext, vaultKey, ivBytes);
-                string jsonBack = Encoding.UTF8.GetString(decrypted);
+                byte[] decryptedBytes = DecryptVault(encryptedBytes, vaultKey, iv);
+                string decryptedJson = Encoding.UTF8.GetString(decryptedBytes);
 
-                _ = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonBack)
+                vault = JsonSerializer.Deserialize<Dictionary<string, string>>(decryptedJson)
                     ?? new Dictionary<string, string>();
             }
             catch
             {
-                Console.WriteLine("Fel: Fel master password eller fel secret key (kunde inte dekryptera).");
+                Console.WriteLine("Dekrypteringen misslyckades, angett rätt lösenord?");
                 return;
             }
 
-            var clientDict = new Dictionary<string, string>
+
+            var clientDictionary = new Dictionary<string, string>
             {
-                { "secret", secretB64 }
+                { "secret", secretKeyBase64 }
             };
 
-            File.WriteAllText(clientPath, JsonSerializer.Serialize(clientDict));
+
+            File.WriteAllText(clientPath, JsonSerializer.Serialize(clientDictionary));
         }
-        static void RunDelete(string[] args)
+
+        //Används för att ta bort värden
+        static void Delete(string[] args)
         {
-            // delete <client> <server> <prop>
             if (args.Length != 4)
             {
-                Console.WriteLine("Fel: Syntax: delete <client> <server> <prop>");
+                Console.WriteLine("Felaktig syntax angivet, för set, använd: delete <client> <server> <prop>");
                 return;
             }
 
@@ -560,12 +555,9 @@ namespace Lösenordshanterare
             string serverPath = args[2];
             string prop = args[3];
 
-            // -----------------------------------------------------
-            // 1) Läs client.json och hämta "secret"
-            // -----------------------------------------------------
             if (!File.Exists(clientPath))
             {
-                Console.WriteLine("Fel: Client-filen finns inte.");
+                Console.WriteLine("Client-filen existerar inte.");
                 return;
             }
 
@@ -576,33 +568,31 @@ namespace Lösenordshanterare
             }
             catch
             {
-                Console.WriteLine("Fel: Client-filen är inte giltig JSON.");
+                Console.WriteLine("Client-filen är inte i giltigt JSON-format.");
                 return;
             }
 
             if (clientData == null || !clientData.ContainsKey("secret"))
             {
-                Console.WriteLine("Fel: Client-filen saknar 'secret'.");
+                Console.WriteLine("Client-filen saknar en giltig secret-key.");
                 return;
             }
 
-            byte[] secretKeyBytes;
+            byte[] secretKey;
             try
             {
-                secretKeyBytes = Convert.FromBase64String(clientData["secret"]);
+                secretKey = Convert.FromBase64String(clientData["secret"]);
             }
             catch
             {
-                Console.WriteLine("Fel: Client-filens 'secret' är inte giltig Base64.");
+                Console.WriteLine("Secret key för client-filen är inte i giltigt Base64-format.");
                 return;
             }
 
-            // -----------------------------------------------------
-            // 2) Läs server.json och hämta "iv" och "vault"
-            // -----------------------------------------------------
+
             if (!File.Exists(serverPath))
             {
-                Console.WriteLine("Fel: Server-filen finns inte.");
+                Console.WriteLine("Server-filen existerar inte.");
                 return;
             }
 
@@ -613,86 +603,69 @@ namespace Lösenordshanterare
             }
             catch
             {
-                Console.WriteLine("Fel: Server-filen är inte giltig JSON.");
+                Console.WriteLine("Server-filen är inte i giltigt JSON-format.");
                 return;
             }
 
             if (serverData == null || !serverData.ContainsKey("iv") || !serverData.ContainsKey("vault"))
             {
-                Console.WriteLine("Fel: Server-filen saknar 'iv' och/eller 'vault'.");
+                Console.WriteLine("Server-filen saknar iv och/eller vault, eller är null.");
                 return;
             }
 
-            byte[] ivBytes;
-            byte[] ciphertext;
+            byte[] iv;
+            byte[] encryptedBytes;
             try
             {
-                ivBytes = Convert.FromBase64String(serverData["iv"]);
-                ciphertext = Convert.FromBase64String(serverData["vault"]);
+                iv = Convert.FromBase64String(serverData["iv"]);
+                encryptedBytes = Convert.FromBase64String(serverData["vault"]);
             }
             catch
             {
-                Console.WriteLine("Fel: Server-filens 'iv' eller 'vault' är inte giltig Base64.");
+                Console.WriteLine("Server-filens iv eller vault är inte i giltigt Base64-format.");
                 return;
             }
 
-            // -----------------------------------------------------
-            // 3) Fråga master password
-            // -----------------------------------------------------
+
             Console.WriteLine("Ange master password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
-            // -----------------------------------------------------
-            // 4) Dekryptera vault
-            // -----------------------------------------------------
-            byte[] vaultKey = DeriveVaultKey_UsingIvAsSalt(secretKeyBytes, masterPassword, ivBytes);
+            byte[] vaultKey = DeriveVaultKey(secretKey, masterPassword, iv);
 
             Dictionary<string, string> vault;
             try
             {
-                byte[] decrypted = DecryptVault(ciphertext, vaultKey, ivBytes);
-                string jsonBack = Encoding.UTF8.GetString(decrypted);
+                byte[] decryptedBytes = DecryptVault(encryptedBytes, vaultKey, iv);
+                string decryptedJson = Encoding.UTF8.GetString(decryptedBytes);
 
-                vault = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonBack)
+                vault = JsonSerializer.Deserialize<Dictionary<string, string>>(decryptedJson)
                         ?? new Dictionary<string, string>();
             }
             catch
             {
-                Console.WriteLine("Fel: Fel master password eller fel client/server (kunde inte dekryptera).");
+                Console.WriteLine("Dekrypteringen misslyckades, angett rätt lösenord?");
                 return;
             }
 
-            // -----------------------------------------------------
-            // 5) Ta bort prop (om den finns)
-            // -----------------------------------------------------
-            vault.Remove(prop); // om den inte finns händer inget (helt enligt spec)
 
-            // -----------------------------------------------------
-            // 6) Kryptera om och spara tillbaka
-            // -----------------------------------------------------
-            string vaultJson = JsonSerializer.Serialize(vault);
-            byte[] plaintext = Encoding.UTF8.GetBytes(vaultJson);
-            byte[] newCipher = EncryptVault(plaintext, vaultKey, ivBytes);
+            vault.Remove(prop); 
 
-            serverData["vault"] = Convert.ToBase64String(newCipher);
+            string vaultToJson = JsonSerializer.Serialize(vault);
+            byte[] vaultBytes = Encoding.UTF8.GetBytes(vaultToJson);
+            byte[] encryptedBytesNew = EncryptVault(vaultBytes, vaultKey, iv);
+
+            serverData["vault"] = Convert.ToBase64String(encryptedBytesNew);
 
             File.WriteAllText(serverPath, JsonSerializer.Serialize(serverData));
         }
 
-        // =====================================================
-        // *** NYTT ***
-        // CHANGE: change <client> <server> {<pwd>} {<new_pwd>}
-        // Ändrar master password för vaultet i server-filen.
-        // 1) Dekrypterar med nuvarande master password
-        // 2) Krypterar om med nya master password
-        // Om dekryptering misslyckas: avbryt och skriv fel.
-        // =====================================================
-        
-        static void RunChange(string[] args)
+
+        //Används för att skapa nytt master password 
+        static void Change(string[] args)
         {
             if (args.Length != 3)
             {
-                Console.WriteLine("Fel: Syntax: change <client> <server>");
+                Console.WriteLine("Felaktig syntax angivet, för set, använd: change <client> <server>");
                 return;
             }
 
@@ -701,7 +674,7 @@ namespace Lösenordshanterare
 
             if (!File.Exists(clientPath))
             {
-                Console.WriteLine("Fel: Client-filen finns inte.");
+                Console.WriteLine("Client-filen existerar inte.");
                 return;
             }
 
@@ -712,30 +685,30 @@ namespace Lösenordshanterare
             }
             catch
             {
-                Console.WriteLine("Fel: Client-filen är inte giltig JSON.");
+                Console.WriteLine("Client-filen är inte i giltigt JSON-format.");
                 return;
             }
 
-            if (clientData == null || !clientData.TryGetValue("secret", out string secretB64) || string.IsNullOrWhiteSpace(secretB64))
+            if (clientData == null || !clientData.TryGetValue("secret", out string secretKeyBase64) || string.IsNullOrWhiteSpace(secretKeyBase64))
             {
-                Console.WriteLine("Fel: Client-filen saknar 'secret'.");
+                Console.WriteLine("Client-filen saknar en giltig secret-key.");
                 return;
             }
 
-            byte[] secretKeyBytes;
+            byte[] secretKey;
             try
             {
-                secretKeyBytes = Convert.FromBase64String(secretB64);
+                secretKey = Convert.FromBase64String(secretKeyBase64);
             }
             catch
             {
-                Console.WriteLine("Fel: Client-filens 'secret' är inte giltig Base64.");
+                Console.WriteLine("Secret key för client-filen är inte i giltigt Base64-format.");
                 return;
             }
 
             if (!File.Exists(serverPath))
             {
-                Console.WriteLine("Fel: Server-filen finns inte.");
+                Console.WriteLine("Server-filen existerar inte.");
                 return;
             }
 
@@ -746,116 +719,119 @@ namespace Lösenordshanterare
             }
             catch
             {
-                Console.WriteLine("Fel: Server-filen är inte giltig JSON.");
+                Console.WriteLine("Server-filen är inte i giltigt JSON-format.");
                 return;
             }
 
             if (serverData == null || !serverData.ContainsKey("iv") || !serverData.ContainsKey("vault"))
             {
-                Console.WriteLine("Fel: Server-filen saknar 'iv' och/eller 'vault'.");
+                Console.WriteLine("Server-filen saknar iv och/eller vault, eller är null.");
                 return;
             }
 
-            byte[] ivBytes;
-            byte[] ciphertext;
+            byte[] iv;
+            byte[] encryptedBytes;
             try
             {
-                ivBytes = Convert.FromBase64String(serverData["iv"]);
-                ciphertext = Convert.FromBase64String(serverData["vault"]);
+                iv = Convert.FromBase64String(serverData["iv"]);
+                encryptedBytes = Convert.FromBase64String(serverData["vault"]);
             }
             catch
             {
-                Console.WriteLine("Fel: Server-filens 'iv' eller 'vault' är inte giltig Base64.");
+                Console.WriteLine("Server-filens iv eller vault är inte i giltigt Base64-format.");
                 return;
             }
 
             Console.WriteLine("Ange master password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
-            byte[] oldVaultKey = DeriveVaultKey_UsingIvAsSalt(secretKeyBytes, masterPassword, ivBytes);
+            byte[] vaultKeyOld = DeriveVaultKey(secretKey, masterPassword, iv);
 
             Dictionary<string, string> vault;
             try
             {
-                byte[] decrypted = DecryptVault(ciphertext, oldVaultKey, ivBytes);
-                string jsonBack = Encoding.UTF8.GetString(decrypted);
+                byte[] decryptedBytes = DecryptVault(encryptedBytes, vaultKeyOld, iv);
+                string decryptedJson = Encoding.UTF8.GetString(decryptedBytes);
 
-                vault = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonBack)
+                vault = JsonSerializer.Deserialize<Dictionary<string, string>>(decryptedJson)
                         ?? new Dictionary<string, string>();
             }
             catch
             {
-                Console.WriteLine("Fel: Fel master password (kunde inte dekryptera).");
+                Console.WriteLine("Dekrypteringen misslyckades, angett rätt lösenord?");
                 return;
             }
 
             Console.WriteLine("Ange nytt master password: ");
-            string newMasterPassword = Console.ReadLine() ?? "";
+            string masterPasswordNew = Console.ReadLine() ?? "";
 
-            if (string.IsNullOrEmpty(newMasterPassword))
+            if (string.IsNullOrEmpty(masterPasswordNew))
             {
-                Console.WriteLine("Fel: Nytt master password får inte vara tomt.");
+                Console.WriteLine("Du måste ange ett nytt lösenord");
                 return;
             }
 
-            byte[] newVaultKey = DeriveVaultKey_UsingIvAsSalt(secretKeyBytes, newMasterPassword, ivBytes);
+            byte[] vaultKeyNew = DeriveVaultKey(secretKey, masterPasswordNew, iv);
 
-            string vaultJson = JsonSerializer.Serialize(vault);
-            byte[] plaintext = Encoding.UTF8.GetBytes(vaultJson);
-            byte[] newCipher = EncryptVault(plaintext, newVaultKey, ivBytes);
+            string vaultToJson = JsonSerializer.Serialize(vault);
+            byte[] vaultBytes = Encoding.UTF8.GetBytes(vaultToJson);
+            byte[] encryptedBytesNew = EncryptVault(vaultBytes, vaultKeyNew, iv);
 
-            serverData["vault"] = Convert.ToBase64String(newCipher);
+            serverData["vault"] = Convert.ToBase64String(encryptedBytesNew);
 
             File.WriteAllText(serverPath, JsonSerializer.Serialize(serverData));
         }
-        static string GeneratePassword20()
+        //auto-genererar slumpmässigt lösenord på 20 tecken
+        static string autoGeneratePassword()
         {
             const string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-            var sb = new StringBuilder(20);
+            var autoPassword = new StringBuilder(20);
 
-            byte[] bytes = new byte[20];
-            RandomNumberGenerator.Fill(bytes);
+            byte[] autoBytes = new byte[20];
+            RandomNumberGenerator.Fill(autoBytes);
 
             for (int i = 0; i < 20; i++)
-                sb.Append(chars[bytes[i] % chars.Length]);
+                autoPassword.Append(chars[autoBytes[i] % chars.Length]);
 
-            return sb.ToString();
+            string autoPasswordNew = autoPassword.ToString();
+
+            return autoPasswordNew;
         }
 
-        // =====================================================
-        // (BEHÅLLER er kryptokod, samma som ni redan har)
-        // =====================================================
-        static byte[] DeriveVaultKey_UsingIvAsSalt(byte[] secretKeyBytes, string masterPassword, byte[] ivBytes)
+       //Skapar vault keyn som används för att kryptera och dekryptera. Vi valde 10000 iterations för extra säkerhet, stod att det minst skulle vara 1000. 
+        static byte[] DeriveVaultKey(byte[] secretKey, string masterPassword, byte[] iv)
         {
-            string combined = masterPassword + ":" + Convert.ToBase64String(secretKeyBytes);
+            string combined = masterPassword + ":" + Convert.ToBase64String(secretKey);
 
             using var pbkdf2 = new Rfc2898DeriveBytes(
                 password: combined,
-                salt: ivBytes,
-                iterations: 100_000,
+                salt: iv,
+                iterations: 10000,
                 hashAlgorithm: HashAlgorithmName.SHA256);
 
-            return pbkdf2.GetBytes(32); // AES-256
+            return pbkdf2.GetBytes(32); 
         }
 
-        static byte[] EncryptVault(byte[] plaintext, byte[] vaultKey, byte[] iv)
+        //Krypterar valtet med aes. 
+        static byte[] EncryptVault(byte[] vaultBytes, byte[] vaultKey, byte[] iv)
         {
             using Aes aes = Aes.Create();
             aes.Key = vaultKey;
             aes.IV = iv;
 
             using ICryptoTransform encryptor = aes.CreateEncryptor();
-            return encryptor.TransformFinalBlock(plaintext, 0, plaintext.Length);
+            return encryptor.TransformFinalBlock(vaultBytes, 0, vaultBytes.Length);
         }
 
-        static byte[] DecryptVault(byte[] ciphertext, byte[] vaultKey, byte[] iv)
+        //Dekrypterar valtet med aes
+        static byte[] DecryptVault(byte[] vaultBytes, byte[] vaultKey, byte[] iv)
         {
             using Aes aes = Aes.Create();
             aes.Key = vaultKey;
             aes.IV = iv;
 
             using ICryptoTransform decryptor = aes.CreateDecryptor();
-            return decryptor.TransformFinalBlock(ciphertext, 0, ciphertext.Length);
+            return decryptor.TransformFinalBlock(vaultBytes, 0, vaultBytes.Length);
         }
     }
 }
