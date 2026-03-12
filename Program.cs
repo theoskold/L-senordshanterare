@@ -21,7 +21,7 @@ namespace Lösenordshanterare
     // DecryptVault rad 827
     public class Program
     {
-       public static void Main(string[] args)
+        public static void Main(string[] args)
         {
 
             if (args.Length == 0)
@@ -74,7 +74,7 @@ namespace Lösenordshanterare
         //Skapar valv, client och serverfil
         static void Init(string[] args)
         {
-           
+
             if (args.Length != 3)
             {
                 Console.WriteLine("Felaktig syntax angivet, för init, använd: init <client> <server>");
@@ -92,29 +92,29 @@ namespace Lösenordshanterare
             RandomNumberGenerator.Fill(secretKey);
             string secretKeyBase64 = Convert.ToBase64String(secretKey);
 
-       
+
             byte[] iv = new byte[16];
             RandomNumberGenerator.Fill(iv);
             string ivBase64 = Convert.ToBase64String(iv);
 
-      
-            byte[] vaultKey = DeriveVaultKey(secretKey, masterPassword, iv);
+
+            byte[] vaultKey = DeriveVaultKey(secretKey, masterPassword);
 
             var vaultNew = new Dictionary<string, string>();
-            
+
             string vaultToJson = JsonSerializer.Serialize(vaultNew);
             byte[] vaultBytes = Encoding.UTF8.GetBytes(vaultToJson);
 
             byte[] encryptedBytes = EncryptVault(vaultBytes, vaultKey, iv);
 
-     
+
             var clientDictionary = new Dictionary<string, string>
             {
                 { "secret", secretKeyBase64 }
             };
             File.WriteAllText(clientPath, JsonSerializer.Serialize(clientDictionary));
 
-            
+
             var serverDictionary = new Dictionary<string, string>
             {
                 { "iv", ivBase64 },
@@ -122,7 +122,7 @@ namespace Lösenordshanterare
             };
             File.WriteAllText(serverPath, JsonSerializer.Serialize(serverDictionary));
 
-            
+
             Console.WriteLine(secretKeyBase64);
         }
 
@@ -167,7 +167,7 @@ namespace Lösenordshanterare
         //Skapar vaultkey, hämtar och decrypterar innehållet med hjälp av secret key, iv och master password
         static void Get(string[] args)
         {
-          
+
             if (args.Length != 3 && args.Length != 4)
             {
                 Console.WriteLine("Felaktig syntax angivet, för get, använd: get <client> <server> [<prop>]");
@@ -255,8 +255,8 @@ namespace Lösenordshanterare
             Console.WriteLine("Ange ditt master password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
- 
-            byte[] vaultKey = DeriveVaultKey(secretKey, masterPassword, iv);
+
+            byte[] vaultKey = DeriveVaultKey(secretKey, masterPassword);
 
             Dictionary<string, string> vault;
             try
@@ -326,7 +326,7 @@ namespace Lösenordshanterare
                 }
             }
 
-        
+
             if (!File.Exists(clientPath))
             {
                 Console.WriteLine("Client-filen existerar inte.");
@@ -361,7 +361,7 @@ namespace Lösenordshanterare
                 return;
             }
 
-            
+
             if (!File.Exists(serverPath))
             {
                 Console.WriteLine("Server-filen existerar inte.");
@@ -398,12 +398,12 @@ namespace Lösenordshanterare
                 return;
             }
 
-            
+
             Console.Write("Ange master password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
-            
-            byte[] vaultKey = DeriveVaultKey(secretKey, masterPassword, iv);
+
+            byte[] vaultKey = DeriveVaultKey(secretKey, masterPassword);
 
             Dictionary<string, string> vault;
             try
@@ -420,7 +420,7 @@ namespace Lösenordshanterare
                 return;
             }
 
-           
+
             string value;
             if (generate)
             {
@@ -515,7 +515,7 @@ namespace Lösenordshanterare
                 return;
             }
 
-            byte[] vaultKey = DeriveVaultKey(secretKey, masterPassword, iv);
+            byte[] vaultKey = DeriveVaultKey(secretKey, masterPassword);
 
             Dictionary<string, string> vault;
             try
@@ -630,7 +630,7 @@ namespace Lösenordshanterare
             Console.WriteLine("Ange master password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
-            byte[] vaultKey = DeriveVaultKey(secretKey, masterPassword, iv);
+            byte[] vaultKey = DeriveVaultKey(secretKey, masterPassword);
 
             Dictionary<string, string> vault;
             try
@@ -648,7 +648,7 @@ namespace Lösenordshanterare
             }
 
 
-            vault.Remove(prop); 
+            vault.Remove(prop);
 
             string vaultToJson = JsonSerializer.Serialize(vault);
             byte[] vaultBytes = Encoding.UTF8.GetBytes(vaultToJson);
@@ -745,7 +745,7 @@ namespace Lösenordshanterare
             Console.WriteLine("Ange master password: ");
             string masterPassword = Console.ReadLine() ?? "";
 
-            byte[] vaultKeyOld = DeriveVaultKey(secretKey, masterPassword, iv);
+            byte[] vaultKeyOld = DeriveVaultKey(secretKey, masterPassword);
 
             Dictionary<string, string> vault;
             try
@@ -771,7 +771,7 @@ namespace Lösenordshanterare
                 return;
             }
 
-            byte[] vaultKeyNew = DeriveVaultKey(secretKey, masterPasswordNew, iv);
+            byte[] vaultKeyNew = DeriveVaultKey(secretKey, masterPasswordNew);
 
             string vaultToJson = JsonSerializer.Serialize(vault);
             byte[] vaultBytes = Encoding.UTF8.GetBytes(vaultToJson);
@@ -798,18 +798,18 @@ namespace Lösenordshanterare
             return autoPasswordNew;
         }
 
-       //Skapar vault keyn som används för att kryptera och dekryptera. Vi valde 10000 iterations för extra säkerhet, stod att det minst skulle vara 1000. 
-        static byte[] DeriveVaultKey(byte[] secretKey, string masterPassword, byte[] iv)
+        //Skapar vault keyn som används för att kryptera och dekryptera. Vi valde 10000 iterations för extra säkerhet, stod att det minst skulle vara 1000. 
+        static byte[] DeriveVaultKey(byte[] secretKey, string masterPassword)
         {
-            string combined = masterPassword + ":" + Convert.ToBase64String(secretKey);
+
 
             using var pbkdf2 = new Rfc2898DeriveBytes(
-                password: combined,
-                salt: iv,
-                iterations: 10000,
-                hashAlgorithm: HashAlgorithmName.SHA256);
+                masterPassword,
+                secretKey,
+                10000,
+                HashAlgorithmName.SHA256);
 
-            return pbkdf2.GetBytes(32); 
+            return pbkdf2.GetBytes(32);
         }
 
         //Krypterar valtet med aes. 
